@@ -1,0 +1,5 @@
+; $Id
+name        = Oxfam Short URL Service integration
+description = Tools for integrating with the Oxfam Short URL service, oxf.am
+package     = Customisations
+core = 6.x

@@ -1,0 +1,145 @@
+<?php // $Id: shurly_integration.install $
+/**
+ * @file
+ * shurly_integration install.
+ **/
+
+
+/**
+ * Implementation of hook_schema().
+ */
+function shurly_integration_schema() {
+  $schema['oxfam_shurl_user'] = array(
+    'fields' => array(
+      'uid' => array(
+        'description' => t("The Drupal ID of the user account associated with the Twitter account."),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'api_key' => array(
+        'description' => t("The API key for the Oxf.am account."),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'primary key' => array('uid', 'api_key'),
+    'indexes' => array('api_key' => array('api_key'), 'uid' => array('uid')),
+  );
+  $schema['oxfam_shurl'] = array(
+    'fields' => array(
+      'nid' => array(
+        'description' => t('Node ID'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'short_url' => array(
+        'description' => t('Oxf.am short URL'),
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'long_url' => array(
+        'description' => t('Original long URL'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),  
+    'primary key' => array('nid'),
+    'indexes' => array('nid_short_url' => array('nid', 'short_url'), 'short_url' => array('short_url'), 'long_url' => array('long_url')),
+  );
+  
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function shurly_integration_install() {
+  // Create tables.
+  drupal_install_schema('shurly_integration');
+  
+  // Shurly Integration must have heavier weight than pathauto so a node alias can be used in the oxf.am service call in hook_nodeapi().
+  if (module_exists('pathauto')){
+    // Get system weight of pathauto module.
+    $weight = db_result(db_query("SELECT weight FROM {system} WHERE name = 'pathauto'"));
+    // Make weight of shurly_integration module 1 heavier.
+    $result = db_query("UPDATE {system} SET weight = %d WHERE name = '%s'", $weight + 1, 'shurly_integration');
+  }
+  
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function shurly_integration_uninstall() {
+  // Delete tables.
+  drupal_uninstall_schema('shurly_integration');
+}
+
+/**
+ * Shurly Integration must have heavier weight than pathauto so a node alias can be used in the oxf.am service call in hook_nodeapi().
+ */
+function shurly_integration_update_6001() {
+  $ret = array();
+  
+  if (module_exists('pathauto')){
+    // Get system weight of pathauto module.
+    $weight = db_result(db_query("SELECT weight FROM {system} WHERE name = 'pathauto'"));
+    // Make weight of shurly_integration module 1 heavier.
+    $sql = "UPDATE {system} SET weight = %d WHERE name = '%s'";
+    $result = db_query($sql, $weight + 1, 'shurly_integration');
+    $ret[] = array('success' => $result !== FALSE, 'query' => check_plain($sql .' ('. $weight + 1 .', shurly_integration)'));
+  }
+  
+  return $ret;
+}
+
+/**
+ * Add the {oxfam_shurl} table.
+ */
+function shurly_integration_update_6002() {
+  $module = 'shurly_integration';
+  $schema = drupal_get_schema_unprocessed($module);
+  _drupal_initialize_schema($module, $schema);
+  
+  $ret = array();
+  db_create_table($ret, 'oxfam_shurl', $schema['oxfam_shurl']);
+  
+  return $ret;
+}
+
+/**
+ * Add the {oxfam_shurl}.long_url field.
+ */
+function shurly_integration_update_6003() {
+  $ret = array();
+  // Add the 'referer' column.
+  db_add_field($ret, 'oxfam_shurl', 'long_url', array(
+    'description' => t('Original long URL'),
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  )); 
+  
+  return $ret;
+}
+
+/**
+ * Change unique keys to indexes in {oxfam_shurl}.
+ */
+function shurly_integration_update_6004() {
+  $ret = array();
+  
+  db_drop_unique_key($ret, 'oxfam_shurl', 'short_url');
+  db_drop_unique_key($ret, 'oxfam_shurl', 'long_url');
+  db_add_index($ret, 'oxfam_shurl', 'short_url', array('short_url'));
+  db_add_index($ret, 'oxfam_shurl', 'long_url', array('long_url'));
+  
+  return $ret;
+}
